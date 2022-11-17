@@ -1,1 +1,1 @@
-# CodeOnlineJudge-Linux
+# CodeOfflineJudge-Linux
