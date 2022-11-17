@@ -19,9 +19,21 @@ char bufin[101][50], bufout[101][50];
 
 struct test_result{
 	int state;
+	int Mem;
 	int Time;
 };
 typedef struct test_result res_t;
+
+int get_int(char *p)
+{
+	int x = 0;
+	while(*p < '0' || *p > '9') ++p;
+	while(*p >='0' && *p <='9'){ 
+		x=x*10+*p-'0'; ++p; 
+		if(*p == '.') ++p;
+	}
+	return x;
+}
 
 void* tfn(void*args)
 {
@@ -29,6 +41,7 @@ void* tfn(void*args)
 	res_t *res = (res_t*)malloc(sizeof(res_t));
 	res->state = 7; //Unknown Error
 	res->Time = 0;
+	res->Mem = 0;
 
 	char info[10], output[10];
 	sprintf(info, "info%d", num);
@@ -41,7 +54,7 @@ void* tfn(void*args)
 	}
 
 	char arg[50];
-	sprintf(arg, "timeout -s SIGKILL 2s /usr/bin/time -v -o %s ./Test_code <%s >%s", info, bufin[num], output);
+	sprintf(arg, "timeout -s SIGKILL 2s /usr/bin/time -v -o %s ./Test_code.exe <%s >%s", info, bufin[num], output);
 	int status = system(arg);//fork失败返回-1，execl失败返回127
 	if(status == -1 || status == 127){
 		fprintf(stderr, "timeout/time programming error on test-%d", num);
@@ -50,6 +63,21 @@ void* tfn(void*args)
 	
 	if(WIFEXITED(status))
 	{
+		char time_info[256];
+		read(fd, time_info, 256);
+		int utime = get_int(strstr(time_info, "User time"));
+		int stime = get_int(strstr(time_info, "System time"));
+		int ttime = utime + stime;
+		int mem = get_int(strstr(time_info, "Maximum resident"));
+		res->Time = ttime;
+		res->Mem = mem;
+		
+		if(ttime > 100)
+		{
+			res->state = 2; //TLE;
+			return (void*)res;
+		}
+
 		sprintf(arg, "diff --ignore-all-space --ignore-blank-lines %s %s", bufout[num], output);
 		int st = system(arg);
 		if(WIFEXITED(st))
@@ -97,6 +125,9 @@ int main(int argc, char *args[])
 		pthread_create(tid+NO, NULL, tfn, (void*)NO);	
 		++NO;
 	}
+	
+	close(fdin);
+	close(fdout);
 
 	res_t *Res[101];
 

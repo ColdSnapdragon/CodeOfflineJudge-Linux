@@ -4,7 +4,7 @@ Code=$1
 case_data=$2
 
 touch log
-gcc $1 -o Test_code -g -Wall -std=gnu99 &> log 
+gcc $1 -o Test_code.exe -g -Wall -std=gnu99 &> log 
 
 if [[ $case_data != *.zip ]]; then
 	echo -e "$case_data is not a .zip file!"
