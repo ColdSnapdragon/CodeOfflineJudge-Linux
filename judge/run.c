@@ -8,14 +8,19 @@
 #include<signal.h>
 #include<pthread.h>
 
+#define MAX_CASE 100
+#define MAX_TIME 1 //1s
+#define MAX_TIMEOUT 2 //2s
+#define MAX_MEM 131072 //128MB
+
 void perr(const char* str)
 {
 	perror(str);
 	exit(1);
 }
 
-const char descr[10][20]={"AC","WA","TLE","RE","CE","MLE","UKE"};
-char bufin[101][50], bufout[101][50];
+const char descr[10][20] = {"AC","WA","TLE","RE","CE","MLE","OLE","UKE"};
+char bufin[MAX_CASE][50], bufout[MAX_CASE][50];
 
 struct test_result{
 	int state;
@@ -26,6 +31,7 @@ typedef struct test_result res_t;
 
 int get_int(char *p)
 {
+	if(p == NULL) return -1;
 	int x = 0;
 	while(*p < '0' || *p > '9') ++p;
 	while(*p >='0' && *p <='9'){ 
@@ -54,7 +60,7 @@ void* tfn(void*args)
 	}
 */
 	char arg[100];
-	sprintf(arg, "timeout -s SIGKILL 2s /usr/bin/time -v -o %s ./Test_code.exe <%s >%s", info, bufin[num], output);
+	sprintf(arg, "timeout %ds /usr/bin/time -v -o %s ./Test_code.exe <%s >%s", MAX_TIMEOUT, info, bufin[num], output);
 	int status = system(arg);//fork失败返回-1，execl失败返回127
 	if(status == -1 || status == 127){
 		fprintf(stderr, "timeout/time programming error on test-%d", num);
@@ -63,8 +69,19 @@ void* tfn(void*args)
 	
 	if(WIFEXITED(status))
 	{
+		int rtv = WEXITSTATUS(status);
+		//printf("%d---%d\n",num,rtv);
+		if(rtv == 137 || rtv == 124) //timeout
+		{
+			res->state = 2; //TLE
+			res->Time = MAX_TIMEOUT*100;
+			return (void*)res;
+		}
+		
 		char time_info[1024];
 		read(fd, time_info, 1024);
+		
+		int sig = get_int(strstr(time_info, "Command terminated"));
 		int utime = get_int(strstr(time_info, "User time"));
 		int stime = get_int(strstr(time_info, "System time"));
 		int ttime = utime + stime;
@@ -72,13 +89,23 @@ void* tfn(void*args)
 		res->Time = ttime;
 		res->Mem = mem;
 		
-		if(ttime > 100)
+		if(sig != -1)
+		{
+			res->state = 3; //RE
+			return (void*)res;
+		}
+		if(ttime > MAX_TIME*100)
 		{
 			res->state = 2; //TLE;
 			return (void*)res;
 		}
+		if(mem > MAX_MEM)
+		{
+			res->state = 5; //MLE
+			return (void*)res;
+		}
 
-		sprintf(arg, "diff --ignore-all-space --ignore-blank-lines %s %s", bufout[num], output);
+		sprintf(arg, "diff --ignore-all-space --ignore-blank-lines %s %s &> /dev/null", bufout[num], output);
 		int st = system(arg);
 		if(WIFEXITED(st))
 		{
@@ -95,23 +122,41 @@ void* tfn(void*args)
 
 	if(WIFSIGNALED(status))
 	{
-		res->state = 3; //RE
-		if(WTERMSIG(status) == SIGKILL)
-			res->state = 2; //TLE
+		//
 	}
 		
 	return (void*)res;	
 }
 
+void* Pending(void* args)
+{
+	printf("\nPending");
+	int _cnt = 0; 
+	while(1)
+	{
+		if(_cnt < 3)
+			printf(".");
+		else
+			printf("\b\b\b   \b\b\b");
+		_cnt = (_cnt + 1) % 4;
+		fflush(stdout);
+		usleep(200000);
+	}
+	return NULL;
+}
+
 int main(int argc, char *args[])
 {
+	pthread_t ptid;
+	pthread_create(&ptid, NULL, Pending, NULL);
+
 	//int fdin = open(args[1], O_RDONLY);
 	//int fdout = open(args[2], O_RDONLY);
 	FILE *fin = fopen(args[1], "r");
 	FILE *fout = fopen(args[2], "r");
 	
 	int ret;
-	pthread_t tid[101];
+	pthread_t tid[MAX_CASE];
 	
 	int NO = 1;
 	while(1)
@@ -124,8 +169,6 @@ int main(int argc, char *args[])
 		if(ret != 1) break;
 		//if(ret == -1) perr("read error");
 		
-		printf("-----%s\t%s------\n", bufin[NO], bufout[NO]);
-
 		pthread_create(tid+NO, NULL, tfn, (void*)(long)NO);	
 		++NO;
 	}
@@ -133,8 +176,8 @@ int main(int argc, char *args[])
 
 	fclose(fin);
 	fclose(fout);
-
-	res_t *Res[101];
+	
+	res_t *Res[MAX_CASE];
 
 	for(int i = 1; i <= NO; ++i)
 	{
@@ -145,18 +188,21 @@ int main(int argc, char *args[])
 		}
 	}
 	
+	pthread_cancel(ptid);
+	printf("\b\b\b\b\b\b\b\b\b\b          \n");
+
 	int count = 0;
 	for(int i = 1; i <= NO; ++i)
 	{
 		count += !Res[i]->state;
-		printf("Test-%d: %s\ttime=%03dms\tmemory=%dkb\n", i, descr[Res[i]->state], 10*Res[i]->Time, Res[i]->Mem);
+		printf("\nTest-%d: %s\ttime=%03dms\tmemory=%dkb\n", i, descr[Res[i]->state], 10*Res[i]->Time, Res[i]->Mem);
 		free(Res[i]);
 	}
 	
 	if(count == NO)
-		printf("Accept\n");
+		printf("\n-------Accept-------\n");
 	else
-		printf("Unaccept\n");
+		printf("\n-------Unaccept-------\n");
 
 	return 0;
 }

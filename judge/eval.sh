@@ -9,7 +9,7 @@ if [[ $case_data != *.zip ]]; then
 fi
 
 touch comp.log
-make #&> comp.log
+make &> comp.log
 
 if [[ $? != 0 ]]; then
 	echo "compilation fail"
@@ -38,7 +38,7 @@ ls *.in > log.txt
 for item in $(cat log.txt)
 	do
 		Obj=$(echo $item | cut -d '.' -f 1).out
-		find $Obj
+		find $Obj &> /dev/null
 		if [[ $? == 1 ]]
 			then
 				echo -e "Cannot find the answer of $item"
@@ -51,3 +51,8 @@ for item in $(cat log.txt)
 
 mv ../*.exe ./
 ./run.exe in.txt out.txt
+
+cd ..
+
+make clean &> /dev/null
+
