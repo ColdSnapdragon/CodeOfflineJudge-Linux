@@ -37,7 +37,7 @@ int get_int(char *p)
 
 void* tfn(void*args)
 {
-	int num  = (int)args;
+	int num  = (long)args;
 	res_t *res = (res_t*)malloc(sizeof(res_t));
 	res->state = 7; //Unknown Error
 	res->Time = 0;
@@ -47,13 +47,13 @@ void* tfn(void*args)
 	sprintf(info, "info%d", num);
 	sprintf(output, "out%d", num);
 	int fd = open(info, O_RDWR | O_CREAT, 0666);
-
+/*
 	if(unlink(info) < 0){
 		fprintf(stderr, "delete information error");
 		return (void*)res;
 	}
-
-	char arg[50];
+*/
+	char arg[100];
 	sprintf(arg, "timeout -s SIGKILL 2s /usr/bin/time -v -o %s ./Test_code.exe <%s >%s", info, bufin[num], output);
 	int status = system(arg);//fork失败返回-1，execl失败返回127
 	if(status == -1 || status == 127){
@@ -63,8 +63,8 @@ void* tfn(void*args)
 	
 	if(WIFEXITED(status))
 	{
-		char time_info[256];
-		read(fd, time_info, 256);
+		char time_info[1024];
+		read(fd, time_info, 1024);
 		int utime = get_int(strstr(time_info, "User time"));
 		int stime = get_int(strstr(time_info, "System time"));
 		int ttime = utime + stime;
@@ -105,29 +105,34 @@ void* tfn(void*args)
 
 int main(int argc, char *args[])
 {
-	int fdin = open(args[1], O_RDONLY);
-	int fdout = open(args[2], O_RDONLY);
-	int ret;
+	//int fdin = open(args[1], O_RDONLY);
+	//int fdout = open(args[2], O_RDONLY);
+	FILE *fin = fopen(args[1], "r");
+	FILE *fout = fopen(args[2], "r");
 	
+	int ret;
 	pthread_t tid[101];
 	
 	int NO = 1;
 	while(1)
 	{
-		ret = read(fdin, bufin[NO], 1024);
-		if(ret == 0) break;
-		if(ret == -1) perr("read error");
+		ret = fscanf(fin, "%s", bufin[NO]);
+		if(ret != 1) break;
+		//if(ret == -1) perr("read error");
 		
-		ret = read(fdout, bufout[NO], 1024);
-		if(ret == 0) break;
-		if(ret == -1) perr("read error");
+		ret = fscanf(fout, "%s", bufout[NO]);
+		if(ret != 1) break;
+		//if(ret == -1) perr("read error");
 		
-		pthread_create(tid+NO, NULL, tfn, (void*)NO);	
+		printf("-----%s\t%s------\n", bufin[NO], bufout[NO]);
+
+		pthread_create(tid+NO, NULL, tfn, (void*)(long)NO);	
 		++NO;
 	}
-	
-	close(fdin);
-	close(fdout);
+	--NO;
+
+	fclose(fin);
+	fclose(fout);
 
 	res_t *Res[101];
 
@@ -144,7 +149,7 @@ int main(int argc, char *args[])
 	for(int i = 1; i <= NO; ++i)
 	{
 		count += !Res[i]->state;
-		printf("Test-%d: %s time=%3dms\n", i, descr[Res[i]->state], Res[i]->Time);
+		printf("Test-%d: %s\ttime=%03dms\tmemory=%dkb\n", i, descr[Res[i]->state], 10*Res[i]->Time, Res[i]->Mem);
 		free(Res[i]);
 	}
 	

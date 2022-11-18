@@ -3,15 +3,27 @@
 Code=$1
 case_data=$2
 
-touch log
-gcc $1 -o Test_code.exe -g -Wall -std=gnu99 &> log 
-
 if [[ $case_data != *.zip ]]; then
 	echo -e "$case_data is not a .zip file!"
 	exit 1
 fi
 
-Dir=$(echo $case_data | cut -d '.' -f 1)
+touch comp.log
+make #&> comp.log
+
+if [[ $? != 0 ]]; then
+	echo "compilation fail"
+	exit 1
+fi
+
+url=$(echo $case_data | cut -d '.' -f 1)
+Dir=${url##*/}
+
+if [ ! -d $Dir ]; then
+	mkdir $Dir
+fi
+
+gcc $1 -o ${Dir}/Test_code.exe -g -Wall -std=gnu99 &> comp.log 
 
 unzip $case_data -d $Dir &> /dev/null
 
@@ -31,10 +43,11 @@ for item in $(cat log.txt)
 			then
 				echo -e "Cannot find the answer of $item"
 			else
-				echo $item > in.txt
-				echo $Obj > out.txt
+				echo $item >> in.txt
+				echo $Obj >> out.txt
 				echo -e "$item ------> $Obj"
 		fi
 	done
 
-
+mv ../*.exe ./
+./run.exe in.txt out.txt
