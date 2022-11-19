@@ -17,7 +17,7 @@ fi
 
 unzip $case_data -d $Dir &> /dev/null
 
-g++ $1 -o ${Dir}/Test_code.exe -g -Wall -std=gnu99 &> comp.log 
+g++ $1 -o ${Dir}/Test_code.exe -g -Wall -std=gnu++11 &> comp.log 
 
 if [[ $? != 0 ]]; then
 	echo -e "Compilation Error\n"
@@ -62,4 +62,4 @@ for item in $(cat log.txt)
 
 ./run.exe in.list out.list
 
-
+rm -rf $Dir
