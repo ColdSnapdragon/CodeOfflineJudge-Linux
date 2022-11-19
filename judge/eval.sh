@@ -8,30 +8,41 @@ if [[ $case_data != *.zip ]]; then
 	exit 1
 fi
 
-touch comp.log
-make &> comp.log
-
-if [[ $? != 0 ]]; then
-	echo "compilation fail"
-	exit 1
-fi
-
 url=$(echo $case_data | cut -d '.' -f 1)
-Dir=${url##*/}
+Dir=$(dirname $0)/${url##*/}
 
 if [ ! -d $Dir ]; then
 	mkdir $Dir
 fi
 
-gcc $1 -o ${Dir}/Test_code.exe -g -Wall -std=gnu99 &> comp.log 
-
 unzip $case_data -d $Dir &> /dev/null
+
+g++ $1 -o ${Dir}/Test_code.exe -g -Wall -std=gnu99 &> comp.log 
+
+if [[ $? != 0 ]]; then
+	echo -e "Compilation Error\n"
+	cat comp.log
+	exit 1
+fi
+
+cd $(dirname $0)
+
+touch comp.log
+make &> comp.log
+
+if [[ $? != 0 ]]; then
+	echo "run.exe compilation error"
+	cat comp
+	exit 1
+fi
+
+mv *.exe $Dir
 
 cd $Dir
 
 touch log.txt
-touch in.txt
-touch out.txt
+touch in.list
+touch out.list
 
 ls *.in > log.txt
 
@@ -43,16 +54,12 @@ for item in $(cat log.txt)
 			then
 				echo -e "Cannot find the answer of $item"
 			else
-				echo $item >> in.txt
-				echo $Obj >> out.txt
+				echo $item >> in.list
+				echo $Obj >> out.list
 				echo -e "$item ------> $Obj"
 		fi
 	done
 
-mv ../*.exe ./
-./run.exe in.txt out.txt
+./run.exe in.list out.list
 
-cd ..
-
-make clean &> /dev/null
 
