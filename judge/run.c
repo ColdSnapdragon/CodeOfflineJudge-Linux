@@ -10,7 +10,7 @@
 
 #define MAX_CASE 100
 #define MAX_TIME 1 //1s
-#define MAX_TIMEOUT 2 //2s
+#define MAX_TIMEOUT 20 //2s
 #define MAX_MEM 131072 //128MB
 
 void perr(const char* str)
